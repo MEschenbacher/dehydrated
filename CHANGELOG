@@ -2,6 +2,9 @@
 This file contains a log of major changes in dehydrated
 
 ## [x.x.x] - xxxx-xx-xx
+## Added
+- `CERT_HOURS` configuration option to request a certain certificate validity period
+
 ## Changed
 - `--force` no longer forces domain name revalidation by default, a new argument `--force-validation` has been added for that
 

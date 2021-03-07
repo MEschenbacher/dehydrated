@@ -93,6 +93,8 @@
 #HOOK_CHAIN="no"
 
 # Minimum days before expiration to automatically renew certificate (default: 30)
+# This value should not incidate faster renewal than CERT_DAYS validity,
+# otherwise a newly issued certificate is already eligible for renewal.
 #RENEW_DAYS="30"
 
 # Regenerate private keys instead of just signing new certificates on renewal (default: yes)
@@ -130,3 +132,13 @@
 
 # Preferred issuer chain (default: <unset> -> uses default chain)
 #PREFERRED_CHAIN=
+
+# Define certificate lifetime.
+# If set, must contain a date string parseable by date(1) -d on linux and date(1) -v+ on *BSD.
+# Examples: 60day, 8hour, or year. This value should not incidate less lifetime than
+# RENEW_DAYS, otherwise a newly issued certificate is already eligible for renewal. Default:
+# <unset> -> the ACME certificate authority in use decides on the validity period.
+# It is up the to certificate authority to support this option. A CA might deny the
+# certificate request if this value is set. LetsEncrypt does currently not support this
+# option and setting it (even to the default value of 90 days) will result in an error.
+#CERT_DAYS=

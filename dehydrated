@@ -267,6 +267,7 @@ store_configvars() {
   __OPENSSL_CNF="${OPENSSL_CNF}"
   __RENEW_DAYS="${RENEW_DAYS}"
   __IP_VERSION="${IP_VERSION}"
+  __CERT_HOURS="${CERT_HOURS}"
 }
 
 reset_configvars() {
@@ -285,6 +286,7 @@ reset_configvars() {
   OPENSSL_CNF="${__OPENSSL_CNF}"
   RENEW_DAYS="${__RENEW_DAYS}"
   IP_VERSION="${__IP_VERSION}"
+  CERT_HOURS="${__CERT_HOURS}"
 }
 
 hookscript_bricker_hook() {
@@ -310,6 +312,7 @@ verify_config() {
   fi
   [[ "${API}" == "auto" || "${API}" == "1" || "${API}" == "2" ]] || _exiterr "Unsupported API version defined in config: ${API}"
   [[ "${OCSP_DAYS}" =~ ^[0-9]+$ ]] || _exiterr "OCSP_DAYS must be a number"
+  [[ "${CERT_HOURS}" =~ ^[0-9]+$ ]] || _exiterr "CERT_HOURS must be a number"
 }
 
 # Setup default config values, search for and load configuration files
@@ -365,6 +368,7 @@ load_config() {
   DEHYDRATED_USER=
   DEHYDRATED_GROUP=
   API="auto"
+  CERT_HOURS=
 
   if [[ -z "${CONFIG:-}" ]]; then
     echo "#" >&2
@@ -797,6 +801,19 @@ _openssl() {
   fi
 }
 
+# portable dateperiod
+_dateperiod() {
+  period="${1}"
+  format=+%Y-%m-%dT%H:%M:%SZ
+  if [[ "${OSTYPE}" = "Linux" ]]; then
+    date -d "$period" "$format"
+  elif [[ "${OSTYPE}" =~ BSD ]]; then
+    date -v+"$period" "$format"
+  else
+    _exiterr "System != Linux || BSD"
+  fi
+}
+
 # Send http(s) request with specified method
 http_request() {
   tempcont="$(_mktemp)"
@@ -983,7 +1000,11 @@ sign_csr() {
     challenge_identifiers="[${challenge_identifiers%, }]"
 
     echo " + Requesting new certificate order from CA..."
-    order_location="$(signed_request "${CA_NEW_ORDER}" '{"identifiers": '"${challenge_identifiers}"'}' 4>&1 | grep -i ^Location: | cut -d':' -f2- | tr -d ' \t\r\n')"
+    if [ -z "$CERT_HOURS" ]; then
+      order_location="$(signed_request "${CA_NEW_ORDER}" '{"identifiers": '"${challenge_identifiers}"'}' 4>&1 | grep -i ^Location: | cut -d':' -f2- | tr -d ' \t\r\n')"
+    else
+      order_location="$(signed_request "${CA_NEW_ORDER}" '{"identifiers": '"${challenge_identifiers}"', "notAfter": "'"$(_dateperiod "${CERT_DAYS}")"'"}' 4>&1 | grep -i ^Location: | cut -d':' -f2- | tr -d ' \t\r\n')"
+    fi
     result="$(signed_request "${order_location}" "" | jsonsh)"
 
     order_authorizations="$(echo "${result}" | get_json_array_values authorizations)"
@@ -1631,7 +1652,7 @@ command_sign_domains() {
 	# All settings that are allowed here should also be stored and
 	# restored in store_configvars() and reset_configvars()
         case "${config_var}" in
-          KEY_ALGO|OCSP_MUST_STAPLE|OCSP_FETCH|OCSP_DAYS|PRIVATE_KEY_RENEW|PRIVATE_KEY_ROLLOVER|KEYSIZE|CHALLENGETYPE|HOOK|PREFERRED_CHAIN|WELLKNOWN|HOOK_CHAIN|OPENSSL_CNF|RENEW_DAYS)
+          KEY_ALGO|OCSP_MUST_STAPLE|OCSP_FETCH|OCSP_DAYS|PRIVATE_KEY_RENEW|PRIVATE_KEY_ROLLOVER|KEYSIZE|CHALLENGETYPE|HOOK|PREFERRED_CHAIN|WELLKNOWN|HOOK_CHAIN|OPENSSL_CNF|RENEW_DAYS|CERT_HOURS)
             echo "   + ${config_var} = ${config_value}"
             declare -- "${config_var}=${config_value}"
             ;;
